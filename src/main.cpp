@@ -278,6 +278,18 @@ void loop() {
     Serial.print(" | Y: "); Serial.print(dy);
     Serial.print(" | Dir: "); Serial.println(direction);
 
+    // Miscare jucator
+    if (direction != "NEUTRU" && now - lastMoveTime >= moveInterval) {
+      lastMoveTime = now;
+      movePlayer(direction);
+
+      if (playerX == targetX && playerY == targetY) {
+        score++;
+        Serial.print("Score: "); Serial.println(score);
+        spawnTarget();
+      }
+    }
+    
     // LCD
     if (now - lastLcdUpdate >= 60) {
       lastLcdUpdate = now;

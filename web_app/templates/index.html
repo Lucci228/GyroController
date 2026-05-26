@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tilt Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<h1>TILT GAME</h1>
+<p class="subtitle">ESP8266 &bull; MPU6050 &bull; 32&times;32</p>
+
+<!-- IP Configuration -->
+<div class="ip-bar">
+  <span class="ip-label">ESP IP</span>
+  <input type="text" id="espIp" placeholder="192.168.1.XX" />
+  <button class="ip-btn" onclick="connect()">CONECTARE</button>
+</div>
+
+<div class="status-bar">
+  <div class="stat">
+    <span class="stat-label">Score</span>
+    <span class="stat-value" id="scoreVal">0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Directie</span>
+    <span class="stat-value" id="dirVal" style="font-size:.95rem;letter-spacing:.1em">NEUTRU</span>
+  </div>
+</div>
+
+<div class="grid-wrapper">
+  <canvas id="gameCanvas"></canvas>
+</div>
+
+<div class="dir-section">
+  <div class="direction-ring">
+    <div class="dir-cell" id="d-FL">↖</div>
+    <div class="dir-cell" id="d-F">↑<br>FATA</div>
+    <div class="dir-cell" id="d-FR">↗</div>
+    <div class="dir-cell" id="d-L">←<br>STG</div>
+    <div class="dir-cell center" id="d-N">•</div>
+    <div class="dir-cell" id="d-R">DRP<br>→</div>
+    <div class="dir-cell" id="d-BL">↙</div>
+    <div class="dir-cell" id="d-B">SPATE<br>↓</div>
+    <div class="dir-cell" id="d-BR">↘</div>
+  </div>
+</div>
+
+<div class="conn-bar">
+  <div class="conn-dot" id="connDot"></div>
+  <span id="connLabel">Introdu IP-ul ESP si apasa CONECTARE</span>
+</div>
+
+<div class="score-pop" id="scorePop">+1</div>
+
+<script src="{{ url_for('static', filename='game.js') }}"></script>
+</body>
+</html>
