@@ -13,6 +13,54 @@ let prevScore = 0;
 let collisionFlash = 0;
 let prevPx = -1, prevPy = -1;
 let state = { playerX: 15, playerY: 15, targetX: 25, targetY: 5, score: 0, direction: 'NEUTRU' };
+const MOVE_INTERVAL = 140; // ms, should match ESP's moveInterval
+
+// Spawn a new target at a random location not colliding with player
+function spawnTarget() {
+  state.targetX = Math.floor(Math.random() * W);
+  state.targetY = Math.floor(Math.random() * H);
+  if (state.targetX === state.playerX && state.targetY === state.playerY) {
+    state.targetX = (state.targetX + 8) % W;
+  }
+}
+
+// Move the player according to current direction
+function applyMovement(direction) {
+  if (direction === 'NEUTRU') return;
+  if      (direction === 'FATA')          state.playerY--;
+  else if (direction === 'SPATE')         state.playerY++;
+  else if (direction === 'STANGA')        state.playerX--;
+  else if (direction === 'DREAPTA')       state.playerX++;
+  else if (direction === 'FATA-DREAPTA')  { state.playerY--; state.playerX++; }
+  else if (direction === 'FATA-STANGA')   { state.playerY--; state.playerX--; }
+  else if (direction === 'SPATE-DREAPTA') { state.playerY++; state.playerX++; }
+  else if (direction === 'SPATE-STANGA')  { state.playerY++; state.playerX--; }
+
+  if (state.playerX < 0) state.playerX = 0;
+  if (state.playerX >= W) state.playerX = W - 1;
+  if (state.playerY < 0) state.playerY = 0;
+  if (state.playerY >= H) state.playerY = H - 1;
+}
+
+// Local game tick: move player and handle collisions/score
+setInterval(() => {
+  const dir = state.direction;
+  // previous position for trail
+  if (dir !== 'NEUTRU') {
+    const prev = { x: state.playerX, y: state.playerY };
+    applyMovement(dir);
+    if (prev.x !== state.playerX || prev.y !== state.playerY) {
+      trail.push(prev);
+      if (trail.length > TRAIL_LEN) trail.shift();
+    }
+
+    if (state.playerX === state.targetX && state.playerY === state.targetY) {
+      state.score++;
+      collisionFlash = 8;
+      spawnTarget();
+    }
+  }
+}, MOVE_INTERVAL);
 
 // ---- Render loop ----
 function renderCanvas() {
@@ -94,31 +142,10 @@ requestAnimationFrame(renderCanvas);
 
 // ---- Data handler ----
 function applyData(data) {
-  if (data.playerX !== prevPx || data.playerY !== prevPy) {
-    if (prevPx >= 0) {
-      trail.push({ x: prevPx, y: prevPy });
-      if (trail.length > TRAIL_LEN) trail.shift();
-    }
-    prevPx = data.playerX;
-    prevPy = data.playerY;
-  }
-  if (data.playerX === data.targetX && data.playerY === data.targetY) collisionFlash = 8;
-  state = data;
-
-  const sv = document.getElementById('scoreVal');
-  if (data.score !== prevScore) {
-    prevScore = data.score;
-    sv.classList.remove('bump');
-    void sv.offsetWidth;
-    sv.classList.add('bump');
-    setTimeout(() => sv.classList.remove('bump'), 260);
-    const pop = document.getElementById('scorePop');
-    pop.classList.remove('show');
-    void pop.offsetWidth;
-    pop.classList.add('show');
-  }
-  sv.textContent = data.score;
-  document.getElementById('dirVal').textContent = data.direction;
+  // Expect only { direction: '...' } from ESP
+  if (!data || typeof data.direction !== 'string') return;
+  state.direction = data.direction;
+  document.getElementById('dirVal').textContent = state.direction;
 
   const map = {
     'NEUTRU': 'd-N',
@@ -132,7 +159,17 @@ function applyData(data) {
     'SPATE-DREAPTA': 'd-BR'
   };
   document.querySelectorAll('.dir-cell').forEach(el => el.classList.remove('active'));
-  document.getElementById(map[data.direction] || 'd-N').classList.add('active');
+  document.getElementById(map[state.direction] || 'd-N').classList.add('active');
+
+  // update score display if changed
+  const sv = document.getElementById('scoreVal');
+  if (state.score !== prevScore) {
+    prevScore = state.score;
+    sv.classList.remove('bump'); void sv.offsetWidth; sv.classList.add('bump');
+    setTimeout(() => sv.classList.remove('bump'), 260);
+    const pop = document.getElementById('scorePop'); pop.classList.remove('show'); void pop.offsetWidth; pop.classList.add('show');
+  }
+  sv.textContent = state.score;
 }
 
 // ---- WebSocket ----

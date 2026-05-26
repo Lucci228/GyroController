@@ -278,18 +278,6 @@ void loop() {
     Serial.print(" | Y: "); Serial.print(dy);
     Serial.print(" | Dir: "); Serial.println(direction);
 
-    // Miscare jucator
-    if (direction != "NEUTRU" && now - lastMoveTime >= moveInterval) {
-      lastMoveTime = now;
-      movePlayer(direction);
-
-      if (playerX == targetX && playerY == targetY) {
-        score++;
-        Serial.print("Score: "); Serial.println(score);
-        spawnTarget();
-      }
-    }
-    
     // LCD
     if (now - lastLcdUpdate >= 60) {
       lastLcdUpdate = now;
@@ -299,11 +287,7 @@ void loop() {
     if (now - lastWebUpdate >= 80) {
       lastWebUpdate = now;
       StaticJsonDocument<128> doc;
-      doc["playerX"]   = playerX;
-      doc["playerY"]   = playerY;
-      doc["targetX"]   = targetX;
-      doc["targetY"]   = targetY;
-      doc["score"]     = score;
+      // Send only the movement direction; game logic runs in the browser
       doc["direction"] = direction;
       String json;
       serializeJson(doc, json);
