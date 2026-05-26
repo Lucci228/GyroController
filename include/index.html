@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tilt Game - Web</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        #gameContainer {
+            border: 2px solid #0f0;
+            padding: 20px;
+            background: #000;
+            text-align: center;
+            line-height: 1.5;
+            font-size: 20px;
+            letter-spacing: 10px;
+            min-height: 120px;
+            min-width: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .game-row {
+            height: 30px;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #0a0;
+        }
+        #score {
+            margin-top: 10px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .disconnected {
+            color: #f00;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tilt Game - Web Control</h1>
+    
+    <div id="gameContainer">
+        <div class="game-row" id="row0"></div>
+        <div class="game-row" id="row1"></div>
+    </div>
+    
+    <div id="score">Score: 0</div>
+    
+    <div id="status">
+        Status: <span id="statusText">Connecting...</span>
+    </div>
+
+    <script>
+        const GRID_WIDTH = 16;
+        const GRID_HEIGHT = 2;
+        const MOVE_INTERVAL = 140;
+        const DEAD_ZONE = 1800;
+
+        let ws;
+        let playerX = Math.floor(GRID_WIDTH / 2);
+        let playerY = 1;
+        let targetX = 12;
+        let targetY = 0;
+        let score = 0;
+        let lastMoveTime = 0;
+        let lastDirection = "NEUTRU";
+
+        const directionMap = {
+            "FATA": { x: 0, y: -1 },
+            "SPATE": { x: 0, y: 1 },
+            "STANGA": { x: -1, y: 0 },
+            "DREAPTA": { x: 1, y: 0 },
+            "FATA-STANGA": { x: -1, y: -1 },
+            "FATA-DREAPTA": { x: 1, y: -1 },
+            "SPATE-STANGA": { x: -1, y: 1 },
+            "SPATE-DREAPTA": { x: 1, y: 1 },
+            "NEUTRU": { x: 0, y: 0 }
+        };
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.hostname;
+            const wsUrl = `${protocol}//${host}:81/`;
+            
+            console.log("Connecting to:", wsUrl);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log("Connected to ESP!");
+                updateStatus("Connected", false);
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    lastDirection = data.direction;
+                    processGameLogic();
+                    render();
+                } catch (e) {
+                    console.error("Parse error:", e);
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error("WebSocket error:", error);
+                updateStatus("Error", true);
+            };
+
+            ws.onclose = function() {
+                console.log("Disconnected from ESP!");
+                updateStatus("Disconnected", true);
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function processGameLogic() {
+            const now = Date.now();
+            if (lastDirection !== "NEUTRU" && now - lastMoveTime >= MOVE_INTERVAL) {
+                lastMoveTime = now;
+                movePlayer(lastDirection);
+
+                if (playerX === targetX && playerY === targetY) {
+                    score++;
+                    spawnTarget();
+                    updateScore();
+                }
+            }
+        }
+
+        function movePlayer(direction) {
+            const move = directionMap[direction];
+            if (!move) return;
+
+            playerX += move.x;
+            playerY += move.y;
+
+            if (playerX < 0) playerX = 0;
+            if (playerX >= GRID_WIDTH) playerX = GRID_WIDTH - 1;
+            if (playerY < 0) playerY = 0;
+            if (playerY >= GRID_HEIGHT) playerY = GRID_HEIGHT - 1;
+        }
+
+        function spawnTarget() {
+            targetX = Math.floor(Math.random() * GRID_WIDTH);
+            targetY = Math.floor(Math.random() * GRID_HEIGHT);
+
+            if (targetX === playerX && targetY === playerY) {
+                targetX = (targetX + 5) % GRID_WIDTH;
+            }
+        }
+
+        function render() {
+            const rows = [
+                Array(GRID_WIDTH).fill(' '),
+                Array(GRID_WIDTH).fill(' ')
+            ];
+
+            if (targetY === 0) {
+                rows[0][targetX] = '*';
+            } else {
+                rows[1][targetX] = '*';
+            }
+
+            if (playerY === 0) {
+                rows[0][playerX] = (playerX === targetX && targetY === 0) ? '#' : 'P';
+            } else {
+                rows[1][playerX] = (playerX === targetX && targetY === 1) ? '#' : 'P';
+            }
+
+            document.getElementById('row0').textContent = rows[0].join(' ');
+            document.getElementById('row1').textContent = rows[1].join(' ');
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `Score: ${score}`;
+        }
+
+        function updateStatus(text, isError) {
+            const statusEl = document.getElementById('statusText');
+            statusEl.textContent = text;
+            statusEl.className = isError ? 'disconnected' : '';
+        }
+
+        window.addEventListener('load', function() {
+            connectWebSocket();
+            spawnTarget();
+            render();
+            updateScore();
+        });
+    </script>
+</body>
+</html>
