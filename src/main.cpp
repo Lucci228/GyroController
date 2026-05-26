@@ -41,8 +41,15 @@ const unsigned long ledStableThreshold = 1000; // ms required to light LEDs
 
 int zeroReadCount = 0;
 
-const int   deadZone      = 1800;
-const float diagonalRatio = 0.6f;
+int receivedScore = 0;
+bool scoreReceived = false;
+
+// Separate dead zones for forward/back (X) and left/right (Y).
+// Lower X threshold to make "SPATE" (back) easier to detect.
+const int   deadZoneX     = 1400; // forward/back sensitivity
+const int   deadZoneY     = 1800; // left/right sensitivity
+const int   deadZoneMotion = (deadZoneX + deadZoneY) / 2;
+const float diagonalRatio = 0.4f; // reduce diagonal bias so primary axis wins more often
 const float gravityAlpha  = 0.98f;
 const unsigned long moveInterval = 140;
 
@@ -62,12 +69,16 @@ const int blue  = D5;
 // ============================================================
 //  LCD — afisare identica cu working_read.cpp
 // ============================================================
-void renderDirection(const String &direction) {
+void renderDirectionAndScore(const String &direction, int currentScore, bool hasScore) {
   char row0[17];
   char row1[17];
 
-  snprintf(row0, sizeof(row0), "%-16s", "DIR:");
-  snprintf(row1, sizeof(row1), "%-16.16s", direction.c_str());
+  snprintf(row0, sizeof(row0), "DIR:%-12.12s", direction.c_str());
+  if (hasScore) {
+    snprintf(row1, sizeof(row1), "SCOR:%-11d", currentScore);
+  } else {
+    snprintf(row1, sizeof(row1), "SCOR:--");
+  }
 
   lcd.setCursor(0, 0);
   lcd.print(row0);
@@ -100,7 +111,7 @@ void calibrateNeutralPosition() {
   gravityZ = azOffset;
 
   lcd.clear();
-  lcd.setCursor(0, 0); lcd.print("Offset gata");
+  lcd.setCursor(0, 0); lcd.print("Offset gata acum");
   delay(500);
   lcd.clear();
 }
@@ -111,7 +122,7 @@ void calibrateNeutralPosition() {
 String getDirectionLabel(long dx, long dy) {
   long absDx = abs(dx);
   long absDy = abs(dy);
-  if (absDx < deadZone && absDy < deadZone) {
+  if (absDx < deadZoneX && absDy < deadZoneY) {
     return "NEUTRU";
   }
   // Remap axes: treat dx as forward/back and dy as left/right
@@ -157,6 +168,18 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
     Serial.printf("[WS] Client %u conectat\n", num);
   else if (type == WStype_DISCONNECTED)
     Serial.printf("[WS] Client %u deconectat\n", num);
+  else if (type == WStype_TEXT) {
+    StaticJsonDocument<128> doc;
+    DeserializationError error = deserializeJson(doc, payload, length);
+    if (error) {
+      Serial.println("[WS] JSON invalid");
+      return;
+    }
+    if (doc.containsKey("score")) {
+      receivedScore = doc["score"].as<int>();
+      scoreReceived = true;
+    }
+  }
 }
 
 // ============================================================
@@ -216,7 +239,7 @@ void setup() {
   Serial.println("Deschide index.html in browser si seteaza IP-ul ESP!");
 
   lcd.clear();
-  renderDirection("NEUTRU");
+  renderDirectionAndScore("NEUTRU", 0, false);
   directionStableSince = millis();
 }
 
@@ -266,22 +289,26 @@ void loop() {
     // LED-urile se aprind doar dacă controller-ul păstrează o direcție (> NEUTRU)
     // pentru mai mult de `ledStableThreshold` milisecunde
     bool directionStable = (direction != "NEUTRU") && (now - directionStableSince >= ledStableThreshold);
-    bool showX = directionStable && (abs(dx) > deadZone);
-    bool showY = directionStable && (abs(dy) > deadZone);
-    bool showMotion = directionStable && (motionStrength > deadZone * 2);
+    bool showX = directionStable && (abs(dx) > deadZoneX);
+    bool showY = directionStable && (abs(dy) > deadZoneY);
+    bool showMotion = directionStable && (motionStrength > deadZoneMotion * 2);
 
     digitalWrite(red,   showX ? HIGH : LOW);
     digitalWrite(green, showY ? HIGH : LOW);
     digitalWrite(blue,  showMotion ? HIGH : LOW);
 
-    Serial.print("X: "); Serial.print(dx);
-    Serial.print(" | Y: "); Serial.print(dy);
-    Serial.print(" | Dir: "); Serial.println(direction);
+    // Serial.print("X: "); Serial.print(dx);
+    // Serial.print(" | Y: "); Serial.print(dy);
+    // Serial.print(" | Dir: "); Serial.println(direction);
 
     // LCD
     if (now - lastLcdUpdate >= 60) {
       lastLcdUpdate = now;
-      renderDirection(direction);
+      renderDirectionAndScore(
+        direction,
+        receivedScore,
+        scoreReceived
+      );
     }
     // WebSocket la fiecare 80ms
     if (now - lastWebUpdate >= 80) {

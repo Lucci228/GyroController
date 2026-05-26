@@ -42,6 +42,14 @@ function applyMovement(direction) {
   if (state.playerY >= H) state.playerY = H - 1;
 }
 
+function sendState() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    direction: state.direction,
+    score: state.score
+  }));
+}
+
 // Local game tick: move player and handle collisions/score
 setInterval(() => {
   const dir = state.direction;
@@ -58,7 +66,10 @@ setInterval(() => {
       state.score++;
       collisionFlash = 8;
       spawnTarget();
+      sendState();
     }
+
+    sendState();
   }
 }, MOVE_INTERVAL);
 
@@ -203,6 +214,7 @@ function connect() {
   ws.onopen = () => {
     dot.classList.add('online');
     label.textContent = 'Conectat la ' + ip;
+    sendState();
   };
   ws.onclose = () => {
     dot.classList.remove('online');
