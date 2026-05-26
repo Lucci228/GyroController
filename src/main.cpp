@@ -8,10 +8,9 @@
 #include <ArduinoJson.h>
 
 // ============================================================
-//  CONFIGURARE WI-FI — schimba cu datele tale
+//  CONFIGURARE WI-FI — schimba cu datele tale (vezi include/credentials_private.h)
 // ============================================================
-const char* ssid     = "Prusi-WIFI";
-const char* password = "Prusi@WIFI_25";
+#include "credentials_private.h"
 // ============================================================
 
 MPU6050 mpu;
